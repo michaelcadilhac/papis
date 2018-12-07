@@ -21,34 +21,46 @@ def main(query):
         search=query
     )
 
-    # Create an empty tag list
-    tag_list = []
-    for item in documents:
-        if 'tags' in item.keys():
-            for tag in list([item['tags']]):
-                # if tag contains a comma, split it to a list
-                if tag.split(','):
-                    tag = tag.split(',')
-                else:
-                    continue
-                tag_list.append(tag)
+    picked_tags = set()
+    
+    while True:
+        # Create an empty tag list
+        tag_list = []
+        matching_documents = 0
+        for item in documents:
+            if 'tags' in item.keys():
+                tags = item['tags']
+                if isinstance(tags, list):
+                    tags = ",".join(tags)
+                # clean the tag(s)
+                tags = [tag.strip(' ').lower() for tag in tags.split(',')]
+                if picked_tags.issubset(tags):
+                    matching_documents = matching_documents + 1
+                    tag_list.extend(tags)
+        # if no tags are found, exit gracefully
+        if tag_list == []:
+            print('The library does not have any tags set')
+            return
 
-    # if no tags are found, exit gracefully
-    if tag_list == []:
-        print('The library does not have any tags set')
-        return
+        annotated_tag_list = ["* Any tag (" + str(matching_documents) + ")"] + \
+            [tag + " (" + str(tag_list.count(tag)) + ")"
+             for tag in sorted(set(tag_list) - picked_tags)]
 
-    # flatten the list, which may be a list of lists
-    # also make it lower case and strip out any preceding spaces. The list
-    # set, is then sorted to alphanumeric order.
-    flat_list = sorted(set([y.strip(' ').lower() for x in tag_list for y in x]))
+        picked_tag = papis.api.pick(annotated_tag_list)
+        if not picked_tag:
+            return
+        matches = picked_tag[picked_tag.rindex('(')+1:-1]
+        picked_tag = picked_tag[:picked_tag.rindex('(')-1]
+        if picked_tag == "* Any tag":
+            break
+        picked_tags.add(picked_tag)
+        if int(matches) == 1:
+            break
 
-    # Allow the list set (no duplicates) )to be sorted into alphabetical
-    # order and picked from
-    picked_tag = papis.api.pick(flat_list)
-
-    docs = papis.database.get().query_dict(dict(tags=picked_tag))
-
+    query_string = " ".join(
+            ["tags=\"{}\" ".format(tag) for tag in picked_tags]
+        )
+    docs = papis.database.get().query(query_string)
     doc = papis.api.pick_doc(docs)
     if not doc:
         return
