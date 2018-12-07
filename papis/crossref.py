@@ -171,6 +171,7 @@ def get_cross_ref(doi):
     doc = xml.dom.minidom.parseString(doc)
     records = doc.getElementsByTagName("journal")
     records += doc.getElementsByTagName("conference")
+    records += doc.getElementsByTagName("book")
 
     # No results. Is it a valid DOI?
     if len(records) == 0:
@@ -225,6 +226,15 @@ def get_cross_ref(doi):
         res["year"] = data(find_item_named(issue, "year"))
         res["month"] = data(find_item_named(issue, "month"))
 
+    # BOOK INFO
+    book = find_item_named(record, "book_series_metadata")
+    if book:
+        res["booktitle"] = data(
+            find_item_named(book, "proceedings_title"))
+        res["year"] = data(find_item_named(book, "year"))
+        res["month"] = data(find_item_named(book, "month"))
+        res["type"] = "incollection"
+
     # URLS INFO
     doi_resources = record\
         .getElementsByTagName('doi_data')[0]\
@@ -243,9 +253,12 @@ def get_cross_ref(doi):
     other = find_item_named(record, "journal_article")
     if not other:
         other = find_item_named(record, "conference_paper")
+    if not other:
+        other = find_item_named(record, "content_item")
+
     res["title"] = data(find_item_named(other, "title")).replace("\n", "")
-    res["first_page"] = data(find_item_named(other, "first_page"))
     res["last_page"] = data(find_item_named(other, "last_page"))
+    res["first_page"] = data(find_item_named(other, "first_page"))
     if res["first_page"] is not None and res["last_page"] is not None:
         res['pages'] = res["first_page"] + "--" + res["last_page"]
     else:
@@ -258,7 +271,7 @@ def get_cross_ref(doi):
         res["month"] = data(find_item_named(other, "month"))
 
     # AUTHOR INFO
-    res.update(get_author_info_from_results(record))
+    res.update(get_author_info_from_results(other))
 
     # CITATION INFO
     res.update(get_citation_info_from_results(record))
